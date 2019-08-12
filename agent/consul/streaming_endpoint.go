@@ -29,37 +29,49 @@ func (h *ConsulGRPCAdapter) Subscribe(req *stream.SubscribeRequest, server strea
 	snapshotCh := make(chan stream.Event, 32)
 	go snapshotFunc(server.Context(), snapshotCh, req.Key)
 
+	// Resolve the token and create the ACL filter.
+	rule, err := h.srv.ResolveToken(req.Token)
+	if err != nil {
+		return err
+	}
+	filt := newACLFilter(rule, h.srv.logger, h.srv.config.ACLEnforceVersion8)
+
 	// Wait for the events to come in and forward them to the client.
-	var snapshotDone bool
-	for !snapshotDone {
-		select {
-		case <-server.Context().Done():
-			return nil
-		case event, ok := <-snapshotCh:
-			h.srv.logger.Printf("[INFO] consul: sent snapshot event to key %q", req.Key)
-			if !ok {
-				h.srv.logger.Printf("[INFO] consul: finished sending snapshot")
-				snapshotDone = true
-				break
-			}
-			if err := server.Send(&event); err != nil {
-				return err
-			}
+	for event := range snapshotCh {
+		event.SetACLRules()
+		if !filt.allowEvent(event) {
+			continue
 		}
+		if err := server.Send(&event); err != nil {
+			return err
+		}
+	}
+
+	// Send a marker that this is the end of the snapshot.
+	endSnapshotEvent := stream.Event{
+		Topic:   req.Topic,
+		Payload: &stream.Event_EndOfSnapshot{EndOfSnapshot: true},
+	}
+	if err := server.Send(&endSnapshotEvent); err != nil {
+		return err
 	}
 
 	// Register a subscription on this topic/key with the FSM.
 	eventCh := state.Subscribe(req)
 	defer state.Unsubscribe(req)
 
-	h.srv.logger.Printf("[INFO] consul: subscribed to key %q", req.Key)
-
 	for {
 		select {
 		case <-server.Context().Done():
 			return nil
-		case event := <-eventCh:
-			h.srv.logger.Printf("[INFO] consul: sending event for key %q", req.Key)
+		case event, ok := <-eventCh:
+			if !ok {
+				return fmt.Errorf("handler could not keep up with events")
+			}
+			event.SetACLRules()
+			if !filt.allowEvent(event) {
+				continue
+			}
 			if err := server.Send(&event); err != nil {
 				return err
 			}

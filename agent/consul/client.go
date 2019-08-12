@@ -18,6 +18,7 @@ import (
 	"github.com/hashicorp/consul/tlsutil"
 	"github.com/hashicorp/serf/serf"
 	"golang.org/x/time/rate"
+	"google.golang.org/grpc"
 )
 
 const (
@@ -141,7 +142,6 @@ func NewClientLogger(config *Config, logger *log.Logger, tlsConfigurator *tlsuti
 		config:          config,
 		connPool:        connPool,
 		eventCh:         make(chan serf.Event, serfEventBacklog),
-		grpcClient:      NewGRPCClient(logger),
 		logger:          logger,
 		shutdownCh:      make(chan struct{}),
 		tlsConfigurator: tlsConfigurator,
@@ -185,7 +185,7 @@ func NewClientLogger(config *Config, logger *log.Logger, tlsConfigurator *tlsuti
 	c.routers = router.New(c.logger, c.shutdownCh, c.serf, c.connPool)
 	go c.routers.Start()
 
-	// Start GRPC server.
+	// Start GRPC client.
 	c.grpcClient = NewGRPCClient(logger, c.routers)
 
 	// Start LAN event handlers after the router is complete since the event
@@ -379,6 +379,11 @@ func (c *Client) SnapshotRPC(args *structs.SnapshotRequest, in io.Reader, out io
 	}
 
 	return nil
+}
+
+// GRPCConn returns a gRPC connection to a server.
+func (c *Client) GRPCConn() (*grpc.ClientConn, error) {
+	return c.grpcClient.GRPCConn(nil)
 }
 
 // Stats is used to return statistics for debugging and insight

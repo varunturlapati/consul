@@ -52,6 +52,8 @@ func (e *EventPublisher) Commit() {
 			select {
 			case listener <- event:
 			default:
+				close(listener)
+				delete(e.listeners[subscription.Topic], subscription)
 			}
 		}
 	}

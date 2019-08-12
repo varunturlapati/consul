@@ -1,0 +1,51 @@
+syntax = "proto3";
+
+package stream;
+
+import "structs.proto";
+
+service Consul {
+    rpc Subscribe(SubscribeRequest) returns (stream Event) {}
+} 
+
+enum Topic {
+    ServiceHealth = 0;
+}
+  
+message SubscribeRequest {
+    Topic Topic = 1;
+    string Key = 2;
+    string Token = 3;
+}
+
+message Event {
+    Topic Topic = 1;
+    string Key = 2;
+    uint64 Index = 3;
+    repeated ACLRule RequiredACLs = 4;
+    oneof Payload {
+        ServiceHealthUpdate ServiceHealth = 5;
+        bool EndOfSnapshot = 6;
+    }
+}
+
+enum ACLResource {
+    ServiceACL = 0;
+    NodeACL = 1;
+}
+
+message ACLRule {
+    ACLResource Resource = 1;
+    string Segment = 2; 
+}
+
+enum CatalogOp {
+    Register = 0;
+    Deregister = 1;
+}
+
+message ServiceHealthUpdate {
+    CatalogOp Op = 1;
+    CheckServiceNode ServiceNode = 2;
+}
+

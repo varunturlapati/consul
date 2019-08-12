@@ -77,23 +77,42 @@ func TestRegistrationEvents(t *testing.T) {
 		stream.Event{
 			Index: 2,
 			Key:   "api",
-			ServiceHealth: &stream.ServiceHealthUpdate{
-				Node:    "node1",
-				Id:      string(nodeID),
-				Address: "1.2.3.4",
-				Service: "api",
-				Checks: []*stream.HealthCheck{
-					{
-						Name:    "node check",
-						Status:  "passing",
-						CheckID: "check1",
-					},
-					{
-						Name:        "api check",
-						Status:      "critical",
-						CheckID:     "check2",
-						ServiceID:   "api1",
-						ServiceName: "api",
+			Payload: &stream.Event_ServiceHealth{
+				ServiceHealth: &stream.ServiceHealthUpdate{
+					Op: stream.CatalogOp_Register,
+					ServiceNode: &stream.CheckServiceNode{
+						Node: &stream.Node{
+							Node:      "node1",
+							ID:        nodeID,
+							Address:   "1.2.3.4",
+							RaftIndex: stream.RaftIndex{CreateIndex: 1, ModifyIndex: 1},
+						},
+						Service: &stream.NodeService{
+							ID:        "api1",
+							Service:   "api",
+							Address:   "1.1.1.1",
+							Port:      8080,
+							RaftIndex: stream.RaftIndex{CreateIndex: 1, ModifyIndex: 1},
+							Weights:   &stream.Weights{Passing: 1, Warning: 1},
+						},
+						Checks: []*stream.HealthCheck{
+							{
+								Name:      "node check",
+								Node:      "node1",
+								Status:    "passing",
+								CheckID:   "check1",
+								RaftIndex: stream.RaftIndex{CreateIndex: 1, ModifyIndex: 1},
+							},
+							{
+								Name:        "api check",
+								Node:        "node1",
+								Status:      "critical",
+								CheckID:     "check2",
+								ServiceID:   "api1",
+								ServiceName: "api",
+								RaftIndex:   stream.RaftIndex{CreateIndex: 1, ModifyIndex: 1},
+							},
+						},
 					},
 				},
 			},
@@ -101,30 +120,51 @@ func TestRegistrationEvents(t *testing.T) {
 		stream.Event{
 			Index: 2,
 			Key:   "redis",
-			ServiceHealth: &stream.ServiceHealthUpdate{
-				Node:    "node1",
-				Id:      string(nodeID),
-				Address: "1.2.3.4",
-				Service: "redis",
-				Checks: []*stream.HealthCheck{
-					{
-						Name:    "node check",
-						Status:  "passing",
-						CheckID: "check1",
-					},
-					{
-						Name:        "redis check 1",
-						Status:      "critical",
-						CheckID:     "check3",
-						ServiceID:   "redis1",
-						ServiceName: "redis",
-					},
-					{
-						Name:        "redis check 2",
-						Status:      "critical",
-						CheckID:     "check4",
-						ServiceID:   "redis1",
-						ServiceName: "redis",
+			Payload: &stream.Event_ServiceHealth{
+				ServiceHealth: &stream.ServiceHealthUpdate{
+					Op: stream.CatalogOp_Register,
+					ServiceNode: &stream.CheckServiceNode{
+						Node: &stream.Node{
+							Node:      "node1",
+							ID:        nodeID,
+							Address:   "1.2.3.4",
+							RaftIndex: stream.RaftIndex{CreateIndex: 1, ModifyIndex: 1},
+						},
+						Service: &stream.NodeService{
+							ID:        "redis1",
+							Service:   "redis",
+							Address:   "1.1.1.1",
+							Port:      8080,
+							RaftIndex: stream.RaftIndex{CreateIndex: 2, ModifyIndex: 2},
+							Weights:   &stream.Weights{Passing: 1, Warning: 1},
+						},
+						Checks: []*stream.HealthCheck{
+							{
+								Name:      "node check",
+								Node:      "node1",
+								Status:    "passing",
+								CheckID:   "check1",
+								RaftIndex: stream.RaftIndex{CreateIndex: 1, ModifyIndex: 1},
+							},
+							{
+								Name:        "redis check 1",
+								Node:        "node1",
+								Status:      "critical",
+								CheckID:     "check3",
+								ServiceID:   "redis1",
+								ServiceName: "redis",
+								RaftIndex:   stream.RaftIndex{CreateIndex: 2, ModifyIndex: 2},
+							},
+							{
+								Name:        "redis check 2",
+								Node:        "node1",
+								Status:      "critical",
+								CheckID:     "check4",
+								ServiceID:   "redis1",
+								ServiceName: "redis",
+								RaftIndex:   stream.RaftIndex{CreateIndex: 2, ModifyIndex: 2},
+							},
+						},
 					},
 				},
 			},
@@ -134,7 +174,7 @@ func TestRegistrationEvents(t *testing.T) {
 	// Check the output for all the services on node1.
 	{
 		tx := s.db.Txn(false)
-		events, err := s.RegistrationEvents(tx, "node1", "")
+		events, err := s.RegistrationEvents(tx, 2, "node1", "")
 		require.NoError(err)
 		require.Equal(expected, events)
 		tx.Abort()
@@ -170,7 +210,7 @@ func TestRegistrationEvents(t *testing.T) {
 	expected[1].Index = 3
 	{
 		tx := s.db.Txn(false)
-		events, err := s.RegistrationEvents(tx, "node1", "")
+		events, err := s.RegistrationEvents(tx, 3, "node1", "")
 		require.NoError(err)
 		require.Equal(expected, events)
 		tx.Abort()
