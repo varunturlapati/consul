@@ -828,6 +828,8 @@ func (b *Builder) Build() (rt RuntimeConfig, err error) {
 		EncryptVerifyOutgoing:            b.boolVal(c.EncryptVerifyOutgoing),
 		GRPCPort:                         grpcPort,
 		GRPCAddrs:                        grpcAddrs,
+		IgnoreBadCheckFiles:              b.boolVal(c.IgnoreBadCheckFiles),
+		//IgnoreBadCheckFiles:              true,
 		KeyFile:                          b.stringVal(c.KeyFile),
 		KVMaxValueSize:                   b.uint64Val(c.Limits.KVMaxValueSize),
 		LeaveDrainTime:                   b.durationVal("performance.leave_drain_time", c.Performance.LeaveDrainTime),
@@ -1077,7 +1079,10 @@ func (b *Builder) Validate(rt RuntimeConfig) error {
 	// Check for errors in the service definitions
 	for _, s := range rt.Services {
 		if err := s.Validate(); err != nil {
-			return fmt.Errorf("service %q: %s", s.Name, err)
+			// VARUN - If set, then don't return an error at the first sighting of one
+			if rt.IgnoreBadCheckFiles == false {
+				return fmt.Errorf("service %q: %s", s.Name, err)
+			}
 		}
 	}
 

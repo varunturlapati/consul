@@ -2113,11 +2113,12 @@ func (a *Agent) validateService(service *structs.NodeService, chkTypes []*struct
 		service.ID = service.Service
 	}
 	for _, check := range chkTypes {
-		if err := check.Validate(); err != nil {
+		if err := check.Validate(); err != nil && a.config.IgnoreBadCheckFiles == false {
 			return fmt.Errorf("Check is not valid: %v", err)
 		}
+		a.logger.Printf("VTBuild: I am only printing the value of IgnoreBadCheckFiles: %v",
+			a.config.IgnoreBadCheckFiles)
 	}
-
 	// Set default weights if not specified. This is important as it ensures AE
 	// doesn't consider the service different since it has nil weights.
 	if service.Weights == nil {
@@ -2305,7 +2306,11 @@ func (a *Agent) addCheck(check *structs.HealthCheck, chkType *structs.CheckType,
 
 		if chkType.IsScript() {
 			if source == ConfigSourceLocal && !a.config.EnableLocalScriptChecks {
-				return fmt.Errorf("Scripts are disabled on this agent; to enable, configure 'enable_script_checks' or 'enable_local_script_checks' to true")
+				a.logger.Println("VARUN's debug line")
+				if !a.config.IgnoreBadCheckFiles {
+					return fmt.Errorf("VTBuild: Scripts are disabled on this agent; to enable, " +
+						"configure 'enable_script_checks' or 'enable_local_script_checks' to true")
+				}
 			}
 
 			if source == ConfigSourceRemote && !a.config.EnableRemoteScriptChecks {
